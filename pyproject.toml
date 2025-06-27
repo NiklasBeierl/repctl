@@ -1,0 +1,46 @@
+[project]
+name = "repctl"
+version = "0.1.0"
+description = "An alternative CLI and API-Client for sysReptor"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pyyaml>=6.0.2",
+    "requests-toolbelt>=1.0.0",
+]
+
+[project.scripts]
+repctl = "repctl.__main__:main_cli"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.16.1",
+    "python-dotenv>=1.1.0",
+    "ruff>=0.11.10",
+]
+
+[tool.ruff.lint]
+extend-select = [
+    "F401", # Unused import
+    "I", # Imports
+    "D", # Docs, google style (see below)
+    "D213"  # Multiline docstrings start with newline
+]
+ignore = [
+    "D100", # Docstrings on every module
+    "D101", # Docstring on every class
+    "D102", # Docstring on every method
+    "D103", # Missing docstring for functions
+    "D104", # Docstring on every package
+    "D105", # Docstring on every dunder
+    "D106", # Docstring on every nested class
+    "D107", # Docstring on every __init__
+    "D212" #  We use D213 instead
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
