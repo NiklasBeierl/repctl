@@ -1,12 +1,14 @@
 import logging
 import os
 from argparse import ArgumentParser, Namespace
+from collections import defaultdict
 from pathlib import Path
 
 from repctl.exceptions import InvalidScubaReport, RepctlException
 from repctl.reporting.scuba import read_report_file
 from repctl.snippets import (
     get_snippets,
+    read_snippet,
 )
 from repctl.sysreptor import (
     FindingTemplate,
@@ -34,39 +36,61 @@ def load_templates(args: Namespace) -> int:
         LOGGER.error("No Reptor API key provided, pass --api-key or set REPTOR_KEY")
         return 1
 
+    if args.input.is_file():
+        all_snippets = {
+            args.input.name.with_suffix(""): read_snippet(args.input)
+        }
+    else:
+        all_snippets = get_snippets(args.input)
+
+
+    main_found : set[str] = set()
+    langs_found : defaultdict[str, set[str]] = defaultdict(set)
+    templates: dict[str, FindingTemplate] = {}
+
+    for snippet in all_snippets.values():
+        template_id = snippet["templateId"]
+        id_value = make_template_id(template_id)
+        lang = snippet["lang"]
+
+        if snippet["isMain"]:
+            if id_value in main_found:
+                LOGGER.error(f"Found multiple main translations for {template_id}, aborting.")
+                return 1
+            else:
+                main_found.add(id_value)
+
+        if lang in langs_found[id_value]:
+            LOGGER.error(f"Found multiple {lang} translations for {template_id}, aborting.")
+            return 1
+        langs_found[id_value].add(lang)
+
+        translation: FindingTemplateTranslation = dict(
+            id=None,
+            language=lang,
+            is_main=snippet["isMain"],
+            data={
+                **snippet["sysReptorFields"],
+                "_my_reptor_identifier": id_value,
+            },
+        )
+
+        template: FindingTemplate
+        if template_id not in templates:
+            template = templates[id_value] = dict(
+                id = None,
+                details = None,
+                translations = [],
+                tags=list(set(snippet["tags"])),
+            )
+
+        else:
+            template = templates[id_value]
+
+        template["translations"].append(translation)
+
     session = ReptorSession(base_url=args.reptorurl, api_key=api_key)
-
-    # TODO: Properly collect snippets into templates based on templateId and language
-    en_snippets = get_snippets(translations=False)
-    de_snippets = get_snippets(translations=True)
-
-    for name, en_snippet in en_snippets.items():
-        de_snippet = de_snippets[name]
-        id_value = make_template_id(en_snippet["templateId"])
-        de_trans: FindingTemplateTranslation = dict(
-            id=None,
-            language="de-DE",
-            is_main=True,
-            data={
-                **de_snippet["sysReptorFields"],
-                "_my_reptor_identifier": id_value,
-            },
-        )
-        en_trans: FindingTemplateTranslation = dict(
-            id=None,
-            language="en-US",
-            is_main=False,
-            data={
-                **en_snippet["sysReptorFields"],
-                "_my_reptor_identifier": id_value,
-            },
-        )
-        template: FindingTemplate = dict(
-            id=None,
-            details=None,
-            translations=[en_trans, de_trans],
-            tags=en_snippet["tags"],
-        )
+    for id_value, template in templates.items():
         session.templates.search_and_upsert(template, search=id_value)
     return 0
 
@@ -139,14 +163,6 @@ def main_cli() -> int:
     reptor_report_parser = subparsers.add_parser("scuba-report")
     reptor_report_parser.set_defaults(func=reptor_report)
     reptor_report_parser.add_argument(
-        "input", type=Path, help="Input file: ScubaResults_<id>.json"
-    )
-    reptor_report_parser.add_argument(
-        "project_url",
-        type=str,
-        help="URL of the project on your sysreptor instance.",
-    )
-    reptor_report_parser.add_argument(
         "--lang",
         type=str,
         help="Code of language to use for templates, default: de-DE",
@@ -157,18 +173,31 @@ def main_cli() -> int:
         type=str,
         help="Sysreptor API Key, may also be passed as env var: REPTOR_KEY",
     )
+    reptor_report_parser.add_argument(
+        "input", type=Path, help="Input file: ScubaResults_<id>.json"
+    )
+    reptor_report_parser.add_argument(
+        "project_url",
+        type=str,
+        help="URL of the project on your sysreptor instance.",
+    )
 
     load_templates_parser = subparsers.add_parser("load-templates")
     load_templates_parser.set_defaults(func=load_templates)
+    load_templates_parser.add_argument(
+        "--api-key",
+        type=str,
+        help="Sysreptor API Key, may also be passed as env var: REPTOR_KEY",
+    )
     load_templates_parser.add_argument(
         "reptorurl",
         type=str,
         help="BaseUrl of SysReptor Instance, e.g.: https://sysreptor.example.com",
     )
     load_templates_parser.add_argument(
-        "--api-key",
-        type=str,
-        help="Sysreptor API Key, may also be passed as env var: REPTOR_KEY",
+        "input",
+        type=Path,
+        help="Template snippet or dir containing snippets."
     )
 
     args = parser.parse_args()

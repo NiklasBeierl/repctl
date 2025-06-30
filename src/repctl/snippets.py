@@ -15,6 +15,7 @@ FM_BOUNDARY = "---"
 
 class SnippetData(TypedDict):
     lang: str
+    isMain: bool
     contentField: str
     templateId: str
     tags: list[str]
@@ -80,7 +81,7 @@ def write_snippet(path: Path, data: SnippetData) -> None:
 def get_snippets(
     snippets_dir: Path,
 ) -> dict[str, SnippetData]:
-    pattern = f"{snippets_dir}/*.md"
+    pattern = f"{snippets_dir}/**/*.md"
     results = {}
     for p in glob(pattern):
         path = Path(p)
