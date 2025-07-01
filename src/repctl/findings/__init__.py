@@ -13,7 +13,7 @@ class FindingLoader(ABC):
 
     @classmethod
     def get_template_id(cls, id: str):
-        return f"{cls.name}-{make_template_id(id)}"
+        return make_template_id(f"{cls.name}-{id}")
 
     @classmethod
     def configure_parser(cls, parser: ArgumentParser):
