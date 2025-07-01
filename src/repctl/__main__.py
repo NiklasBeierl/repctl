@@ -1,9 +1,12 @@
+#!/usr/bin/env python
 import logging
 from argparse import ArgumentParser, Namespace
 from collections import defaultdict
 from functools import partial
 from pathlib import Path
 from typing import Type
+
+from dotenv import load_dotenv
 
 from repctl.exceptions import RepctlException
 from repctl.findings import FindingLoader
@@ -24,14 +27,8 @@ from repctl.utils import get_api_key, setup_logging
 
 LOGGER = logging.getLogger("repctl")
 ID_VALUE_FIELD_NAME = "repctlTemplateId"
-
-try:
-    from dotenv import load_dotenv
-
-    load_dotenv()
-except ImportError:
-    ...
-
+CONF_FILE_PATH = Path.home() / ".config" / "repctl.env"
+LOCAL_DOTENV_PATH = Path(".env")
 
 def load_templates(args: Namespace) -> int:
     if not (api_key := get_api_key(args)):
@@ -117,6 +114,7 @@ def run_finding_loader(loader_class: Type[FindingLoader], args: Namespace) -> in
 
 def main_cli() -> int:
     setup_logging()
+
     parser = ArgumentParser()
     parser.add_argument(
         "--api-key",
@@ -147,11 +145,19 @@ def main_cli() -> int:
             "project_url",
             type=str,
             help="URL of the project on your SysReptor instance. "
-            "(Just copy it from your browser!)",
+            "(Simply copy it from your browser!)",
         )
         loader.configure_parser(loader_parser)
 
     args = parser.parse_args()
+
+    if LOCAL_DOTENV_PATH.exists():
+        LOGGER.info(f"Loading env vars from {LOCAL_DOTENV_PATH}")
+        load_dotenv()
+    if CONF_FILE_PATH.exists():
+        LOGGER.info(f"Loading env vars from {CONF_FILE_PATH}")
+        load_dotenv(CONF_FILE_PATH)
+
     return args.func(args)
 
 

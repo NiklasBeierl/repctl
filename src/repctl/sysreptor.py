@@ -104,7 +104,9 @@ class TemplatesClient(BaseAPIClient):
             return search_results[0]
         return None
 
-    def search_and_upsert(self, template: NewFindingTemplate | FindingTemplate, search: str) -> None:
+    def search_and_upsert(
+        self, template: NewFindingTemplate | FindingTemplate, search: str
+    ) -> None:
         existing_template = self.find_one(search)
         title = template["translations"][0]["data"]["title"]
 
