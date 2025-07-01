@@ -30,6 +30,7 @@ ID_VALUE_FIELD_NAME = "repctlTemplateId"
 CONF_FILE_PATH = Path.home() / ".config" / "repctl.env"
 LOCAL_DOTENV_PATH = Path(".env")
 
+
 def load_templates(args: Namespace) -> int:
     if not (api_key := get_api_key(args)):
         return 1
@@ -133,7 +134,8 @@ def main_cli() -> int:
     load_templates_parser.add_argument(
         "input",
         type=Path,
-        help="Snippet file or dir containing snippets.",
+        help="Snippet file or directory containing snippets "
+        "(searched recursively for .md files)",
     )
 
     load_findings_parser = subparsers.add_parser("load-findings")
@@ -151,12 +153,13 @@ def main_cli() -> int:
 
     args = parser.parse_args()
 
-    if LOCAL_DOTENV_PATH.exists():
-        LOGGER.info(f"Loading env vars from {LOCAL_DOTENV_PATH}")
-        load_dotenv()
     if CONF_FILE_PATH.exists():
         LOGGER.info(f"Loading env vars from {CONF_FILE_PATH}")
         load_dotenv(CONF_FILE_PATH)
+
+    if LOCAL_DOTENV_PATH.exists():
+        LOGGER.info(f"Loading env vars from {LOCAL_DOTENV_PATH}")
+        load_dotenv()
 
     return args.func(args)
 

@@ -80,19 +80,15 @@ class ScubaFindingLoader(FindingLoader):
                 # Add pseudo-finding for policyGroup
                 group_id = group["GroupNumber"]
                 template_id = self.get_template_id(f"{product.lower()}-{group_id}")
-                template = self.session.templates.find_one(template_id)
-                if template is None:
-                    LOGGER.error(f"Could not find template {template_id}")
-                    return 1
+                group_template = self.session.templates.find_one(template_id)
+                if group_template is not None:
+                    self.session.findings.create_from_template(
+                        project_id=self.project_id,
+                        template_id=group_template["id"],
+                        template_language=args.lang,
+                    )
 
-                # Returned from API, must have an ID
-                self.session.findings.create_from_template(
-                    project_id=self.project_id,
-                    template_id=template["id"],
-                    template_language=args.lang,
-                )
-
-                # Add actual findings
+                # Add findings for policies
                 for control in group["Controls"]:
                     policy_id = control["ControlID"]
                     template_id = self.get_template_id(policy_id)
