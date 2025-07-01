@@ -2,10 +2,12 @@ import logging
 import os
 from argparse import ArgumentParser, Namespace
 from collections import defaultdict
+from functools import partial
 from pathlib import Path
+from typing import Type
 
-from repctl.exceptions import InvalidScubaReport, RepctlException
-from repctl.reporting.scuba import read_report_file
+from repctl.exceptions import RepctlException
+from repctl.findings.loaders.scuba import ScubaFindingLoader
 from repctl.snippets import (
     get_snippets,
     read_snippet,
@@ -95,13 +97,7 @@ def load_templates(args: Namespace) -> int:
     return 0
 
 
-def reptor_report(args: Namespace) -> int:
-    try:
-        results = read_report_file(args.input)
-    except InvalidScubaReport as e:
-        print(e.msg)
-        return 1
-
+def run_finding_loader(Loader: Type[ScubaFindingLoader], args: Namespace) -> int:
     if not (api_key := args.api_key or os.getenv("REPTOR_KEY")):
         LOGGER.error("No Reptor API key provided, pass --api-key or set REPTOR_KEY")
         return 1
@@ -112,46 +108,11 @@ def reptor_report(args: Namespace) -> int:
         print(e.msg)
         return 1
 
-    LOGGER.warning(f"Importing findings to SysReptor project {project_id}")
+    LOGGER.info(f"Importing findings to SysReptor project {project_id} with loader {Loader.name}")
 
     session = ReptorSession(base_url=base_url, api_key=api_key)
-
-    # TODO: Filter N/A findings and groups that only contain N/A findings
-    for product, groups in results.items():
-        for group in groups:
-            # Add pseudo-finding for policyGroup
-            group_id = group["GroupNumber"]
-            template_id = make_template_id(f"{product.lower()}-{group_id}")
-            template = session.templates.find_one(template_id)
-            session.findings.create_from_template(
-                project_id=project_id,
-                template_id=template["id"],
-                template_language=args.lang,
-            )
-
-            # Add actual findings
-            for control in group["Controls"]:
-                policy_id = control["ControlID"]
-                template_id = make_template_id(policy_id)
-                template = session.templates.find_one(template_id)
-                finding = session.findings.create_from_template(
-                    project_id=project_id,
-                    template_id=template["id"],
-                    template_language=args.lang,
-                )
-                finding["data"] = {
-                    **finding["data"],
-                    "criticality": control["Criticality"],
-                    "result": control["Result"],
-                    "details": control["Details"],
-                }
-                session.findings.update(
-                    project_id=project_id,
-                    finding_id=finding["id"],
-                    finding=finding,
-                )
-                LOGGER.warning(f"Added finding {policy_id} ({finding['id']})")
-    return 0
+    loader = Loader(session=session, project_id=project_id)
+    return loader(args)
 
 
 def main_cli() -> int:
@@ -160,27 +121,23 @@ def main_cli() -> int:
     subparsers = parser.add_subparsers(required=True)
 
     # TODO: Break this up for different reporting tools
-    reptor_report_parser = subparsers.add_parser("scuba-report")
-    reptor_report_parser.set_defaults(func=reptor_report)
-    reptor_report_parser.add_argument(
-        "--lang",
-        type=str,
-        help="Code of language to use for templates, default: de-DE",
-        default="de-DE",
-    )
-    reptor_report_parser.add_argument(
+    load_findings_parser = subparsers.add_parser("load-findings")
+    load_findings_parser.add_argument(
         "--api-key",
         type=str,
         help="Sysreptor API Key, may also be passed as env var: REPTOR_KEY",
     )
-    reptor_report_parser.add_argument(
-        "input", type=Path, help="Input file: ScubaResults_<id>.json"
-    )
-    reptor_report_parser.add_argument(
-        "project_url",
-        type=str,
-        help="URL of the project on your sysreptor instance.",
-    )
+
+    loader_subparsers = load_findings_parser.add_subparsers(required=True)
+    for loader in [ScubaFindingLoader]:
+        loader_parser = loader_subparsers.add_parser(loader.name)
+        loader_parser.set_defaults(func=partial(run_finding_loader, loader))
+        loader_parser.add_argument(
+            "project_url",
+            type=str,
+            help="URL of the project on your sysreptor instance.",
+        )
+        loader.configure_parser(loader_parser)
 
     load_templates_parser = subparsers.add_parser("load-templates")
     load_templates_parser.set_defaults(func=load_templates)

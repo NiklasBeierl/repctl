@@ -33,15 +33,15 @@ class BaseAPIClient(ABC):
 # what is described here. I am just noting down whatever is actively used in
 # repctls code
 class FindingTemplateTranslation(TypedDict):
-    id: Optional[str]
+    id: str
     is_main: bool
     language: str
     data: dict[str, str | Any]
 
 
 class FindingTemplate(TypedDict):
-    id: Optional[str]
-    details: Optional[URL]
+    id: str
+    details: URL
     tags: list[str]
     translations: list[FindingTemplateTranslation]
 
@@ -103,8 +103,8 @@ class TemplatesClient(BaseAPIClient):
 
 
 class Finding(TypedDict):
-    id: Optional[str]
-    data: dict[str, any]
+    id: str
+    data: dict[str, Any]
 
 
 class FindingsClient(BaseAPIClient):
