@@ -2,7 +2,7 @@ import logging
 import re
 from abc import ABC
 from hashlib import sha1
-from typing import Any, Generator, Generic, Optional, TypedDict, TypeVar, cast
+from typing import Any, Generator, Generic, TypedDict, TypeVar, cast
 from urllib.parse import urlparse, urlunparse
 
 from requests_toolbelt.sessions import BaseUrlSession
@@ -32,18 +32,34 @@ class BaseAPIClient(ABC):
 # The actual data transmitted over the REST API usually has a lot more fields than
 # what is described here. I am just noting down whatever is actively used in
 # repctls code
-class FindingTemplateTranslation(TypedDict):
-    id: str
+class NewFindingTemplateTranslation(TypedDict):
     is_main: bool
     language: str
     data: dict[str, str | Any]
 
 
-class FindingTemplate(TypedDict):
+class FindingTemplateTranslation(NewFindingTemplateTranslation):
     id: str
-    details: URL
+
+
+class NewFindingTemplate(TypedDict):
+    tags: list[str]
+    translations: list[NewFindingTemplateTranslation]
+
+
+class FindingTemplate(TypedDict):
     tags: list[str]
     translations: list[FindingTemplateTranslation]
+    details: URL
+    id: str
+
+
+class NewFinding(TypedDict):
+    data: dict[str, Any]
+
+
+class Finding(NewFinding):
+    id: str
 
 
 class TemplatesClient(BaseAPIClient):
@@ -63,7 +79,7 @@ class TemplatesClient(BaseAPIClient):
         res.raise_for_status()
         return cast(FindingTemplate, res.json())
 
-    def create(self, template: FindingTemplate) -> FindingTemplate:
+    def create(self, template: NewFindingTemplate) -> FindingTemplate:
         res = self.session.post("/api/v1/findingtemplates", json=template)
         res.raise_for_status()
         return cast(FindingTemplate, res.json())
@@ -86,26 +102,23 @@ class TemplatesClient(BaseAPIClient):
             )
         if len(search_results) == 1:
             return search_results[0]
+        return None
 
-    def search_and_upsert(self, template: FindingTemplate, search: str) -> None:
+    def search_and_upsert(self, template: NewFindingTemplate | FindingTemplate, search: str) -> None:
         existing_template = self.find_one(search)
-
         title = template["translations"][0]["data"]["title"]
 
         if not existing_template:
+            template = cast(NewFindingTemplate, template)
             new_template = self.create(template)
             id = new_template["id"]
             LOGGER.info(f'Created template "{title}" ({id})')
         else:
+            template = cast(FindingTemplate, template)
             id = existing_template["id"]
             template["id"] = id
             self.update(template)
             LOGGER.info(f'Updated template "{title}" ({id})')
-
-
-class Finding(TypedDict):
-    id: str
-    data: dict[str, Any]
 
 
 class FindingsClient(BaseAPIClient):
@@ -119,9 +132,9 @@ class FindingsClient(BaseAPIClient):
         res.raise_for_status()
         return cast(Finding, res.json())
 
-    def update(self, project_id: str, finding_id: str, finding: Finding) -> Finding:
+    def update(self, project_id: str, finding: Finding) -> Finding:
         res = self.session.put(
-            f"/api/v1/pentestprojects/{project_id}/findings/{finding_id}",
+            f"/api/v1/pentestprojects/{project_id}/findings/{finding['id']}",
             json=finding,
         )
         res.raise_for_status()

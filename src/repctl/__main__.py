@@ -14,8 +14,8 @@ from repctl.snippets import (
     read_snippet,
 )
 from repctl.sysreptor import (
-    FindingTemplate,
-    FindingTemplateTranslation,
+    NewFindingTemplate,
+    NewFindingTemplateTranslation,
     ReptorSession,
     make_template_id,
     parse_project_url,
@@ -45,7 +45,7 @@ def load_templates(args: Namespace) -> int:
 
     main_found: set[str] = set()
     langs_found: defaultdict[str, set[str]] = defaultdict(set)
-    templates: dict[str, FindingTemplate] = {}
+    templates: dict[str, NewFindingTemplate] = {}
 
     for snippet in all_snippets.values():
         template_id = snippet["templateId"]
@@ -68,8 +68,7 @@ def load_templates(args: Namespace) -> int:
             return 1
         langs_found[id_value].add(lang)
 
-        translation: FindingTemplateTranslation = dict(
-            id=None,
+        translation: NewFindingTemplateTranslation = dict(
             language=lang,
             is_main=snippet["isMain"],
             data={
@@ -78,11 +77,9 @@ def load_templates(args: Namespace) -> int:
             },
         )
 
-        template: FindingTemplate
+        template: NewFindingTemplate
         if template_id not in templates:
             template = templates[id_value] = dict(
-                id=None,
-                details=None,
                 translations=[],
                 tags=list(set(snippet["tags"])),
             )

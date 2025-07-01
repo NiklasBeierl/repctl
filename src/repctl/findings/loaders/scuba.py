@@ -72,7 +72,7 @@ class ScubaFindingLoader(FindingLoader):
         try:
             results = read_report_file(args.input)
         except InvalidScubaReport as e:
-            print(e.msg)
+            LOGGER.error(e.msg)
             return 1
 
         for product, groups in results.items():
@@ -81,6 +81,10 @@ class ScubaFindingLoader(FindingLoader):
                 group_id = group["GroupNumber"]
                 template_id = self.get_template_id(f"{product.lower()}-{group_id}")
                 template = self.session.templates.find_one(template_id)
+                if template is None:
+                    LOGGER.error(f"Could not find template {template_id}")
+                    return 1
+
                 # Returned from API, must have an ID
                 self.session.findings.create_from_template(
                     project_id=self.project_id,
@@ -93,6 +97,9 @@ class ScubaFindingLoader(FindingLoader):
                     policy_id = control["ControlID"]
                     template_id = self.get_template_id(policy_id)
                     template = self.session.templates.find_one(template_id)
+                    if template is None:
+                        LOGGER.error(f"Could not find template {template_id}")
+                        return 1
                     finding = self.session.findings.create_from_template(
                         project_id=self.project_id,
                         template_id=template["id"],
@@ -106,7 +113,6 @@ class ScubaFindingLoader(FindingLoader):
                     }
                     self.session.findings.update(
                         project_id=self.project_id,
-                        finding_id=finding["id"],
                         finding=finding,
                     )
                     LOGGER.info(f"Added finding {policy_id} ({finding['id']})")

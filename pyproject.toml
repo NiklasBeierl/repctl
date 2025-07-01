@@ -21,6 +21,7 @@ dev = [
     "mypy>=1.16.1",
     "python-dotenv>=1.1.0",
     "ruff>=0.11.10",
+    "types-pyyaml>=6.0.12.20250516",
 ]
 
 [tool.ruff.lint]
@@ -44,3 +45,7 @@ ignore = [
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[[tool.mypy.overrides]]
+module = ["requests_toolbelt.*"]
+follow_untyped_imports = true
