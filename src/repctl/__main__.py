@@ -1,5 +1,4 @@
 import logging
-import os
 from argparse import ArgumentParser, Namespace
 from collections import defaultdict
 from functools import partial
@@ -7,8 +6,10 @@ from pathlib import Path
 from typing import Type
 
 from repctl.exceptions import RepctlException
+from repctl.findings import FindingLoader
 from repctl.findings.loaders.scuba import ScubaFindingLoader
 from repctl.snippets import (
+    SnippetData,
     get_snippets,
     read_snippet,
 )
@@ -19,9 +20,10 @@ from repctl.sysreptor import (
     make_template_id,
     parse_project_url,
 )
-from repctl.utils import setup_logging
+from repctl.utils import get_api_key, setup_logging
 
 LOGGER = logging.getLogger("repctl")
+ID_VALUE_FIELD_NAME = "repctlTemplateId"
 
 try:
     from dotenv import load_dotenv
@@ -30,24 +32,19 @@ try:
 except ImportError:
     ...
 
-CONTENT_PATH = Path(__file__).parent / "../content"
-
 
 def load_templates(args: Namespace) -> int:
-    if not (api_key := args.api_key or os.getenv("REPTOR_KEY")):
-        LOGGER.error("No Reptor API key provided, pass --api-key or set REPTOR_KEY")
+    if not (api_key := get_api_key(args)):
         return 1
 
+    all_snippets: dict[str, SnippetData]
     if args.input.is_file():
-        all_snippets = {
-            args.input.name.with_suffix(""): read_snippet(args.input)
-        }
+        all_snippets = {args.input.name.with_suffix(""): read_snippet(args.input)}
     else:
         all_snippets = get_snippets(args.input)
 
-
-    main_found : set[str] = set()
-    langs_found : defaultdict[str, set[str]] = defaultdict(set)
+    main_found: set[str] = set()
+    langs_found: defaultdict[str, set[str]] = defaultdict(set)
     templates: dict[str, FindingTemplate] = {}
 
     for snippet in all_snippets.values():
@@ -57,13 +54,17 @@ def load_templates(args: Namespace) -> int:
 
         if snippet["isMain"]:
             if id_value in main_found:
-                LOGGER.error(f"Found multiple main translations for {template_id}, aborting.")
+                LOGGER.error(
+                    f"Found multiple main translations for {template_id}, aborting."
+                )
                 return 1
             else:
                 main_found.add(id_value)
 
         if lang in langs_found[id_value]:
-            LOGGER.error(f"Found multiple {lang} translations for {template_id}, aborting.")
+            LOGGER.error(
+                f"Found multiple {lang} translations for {template_id}, aborting."
+            )
             return 1
         langs_found[id_value].add(lang)
 
@@ -73,16 +74,16 @@ def load_templates(args: Namespace) -> int:
             is_main=snippet["isMain"],
             data={
                 **snippet["sysReptorFields"],
-                "_my_reptor_identifier": id_value,
+                ID_VALUE_FIELD_NAME: id_value,
             },
         )
 
         template: FindingTemplate
         if template_id not in templates:
             template = templates[id_value] = dict(
-                id = None,
-                details = None,
-                translations = [],
+                id=None,
+                details=None,
+                translations=[],
                 tags=list(set(snippet["tags"])),
             )
 
@@ -97,9 +98,8 @@ def load_templates(args: Namespace) -> int:
     return 0
 
 
-def run_finding_loader(Loader: Type[ScubaFindingLoader], args: Namespace) -> int:
-    if not (api_key := args.api_key or os.getenv("REPTOR_KEY")):
-        LOGGER.error("No Reptor API key provided, pass --api-key or set REPTOR_KEY")
+def run_finding_loader(loader_class: Type[FindingLoader], args: Namespace) -> int:
+    if not (api_key := get_api_key(args)):
         return 1
 
     try:
@@ -108,44 +108,28 @@ def run_finding_loader(Loader: Type[ScubaFindingLoader], args: Namespace) -> int
         print(e.msg)
         return 1
 
-    LOGGER.info(f"Importing findings to SysReptor project {project_id} with loader {Loader.name}")
+    LOGGER.info(
+        f"Importing findings to SysReptor project {project_id} "
+        f"with loader {loader_class.name}"
+    )
 
     session = ReptorSession(base_url=base_url, api_key=api_key)
-    loader = Loader(session=session, project_id=project_id)
+    loader = loader_class(session=session, project_id=project_id)
     return loader(args)
 
 
 def main_cli() -> int:
     setup_logging()
     parser = ArgumentParser()
-    subparsers = parser.add_subparsers(required=True)
-
-    # TODO: Break this up for different reporting tools
-    load_findings_parser = subparsers.add_parser("load-findings")
-    load_findings_parser.add_argument(
+    parser.add_argument(
         "--api-key",
         type=str,
-        help="Sysreptor API Key, may also be passed as env var: REPTOR_KEY",
+        help="SysReptor API Key, may also be passed as env var: REPTOR_KEY",
     )
-
-    loader_subparsers = load_findings_parser.add_subparsers(required=True)
-    for loader in [ScubaFindingLoader]:
-        loader_parser = loader_subparsers.add_parser(loader.name)
-        loader_parser.set_defaults(func=partial(run_finding_loader, loader))
-        loader_parser.add_argument(
-            "project_url",
-            type=str,
-            help="URL of the project on your sysreptor instance.",
-        )
-        loader.configure_parser(loader_parser)
+    subparsers = parser.add_subparsers(required=True)
 
     load_templates_parser = subparsers.add_parser("load-templates")
     load_templates_parser.set_defaults(func=load_templates)
-    load_templates_parser.add_argument(
-        "--api-key",
-        type=str,
-        help="Sysreptor API Key, may also be passed as env var: REPTOR_KEY",
-    )
     load_templates_parser.add_argument(
         "reptorurl",
         type=str,
@@ -154,8 +138,21 @@ def main_cli() -> int:
     load_templates_parser.add_argument(
         "input",
         type=Path,
-        help="Template snippet or dir containing snippets."
+        help="Snippet file or dir containing snippets.",
     )
+
+    load_findings_parser = subparsers.add_parser("load-findings")
+    loader_subparsers = load_findings_parser.add_subparsers(required=True)
+    for loader in [ScubaFindingLoader]:
+        loader_parser = loader_subparsers.add_parser(loader.name)
+        loader_parser.set_defaults(func=partial(run_finding_loader, loader))
+        loader_parser.add_argument(
+            "project_url",
+            type=str,
+            help="URL of the project on your SysReptor instance. "
+            "(Just copy it from your browser!)",
+        )
+        loader.configure_parser(loader_parser)
 
     args = parser.parse_args()
     return args.func(args)

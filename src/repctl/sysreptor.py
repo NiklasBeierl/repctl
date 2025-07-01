@@ -93,13 +93,14 @@ class TemplatesClient(BaseAPIClient):
         title = template["translations"][0]["data"]["title"]
 
         if not existing_template:
-            LOGGER.info(f"Creating template for {title}.")
-            self.create(template)
+            new_template = self.create(template)
+            id = new_template["id"]
+            LOGGER.info(f'Created template "{title}" ({id})')
         else:
             id = existing_template["id"]
             template["id"] = id
-            LOGGER.info(f"Updating template for {title} ({id}).")
             self.update(template)
+            LOGGER.info(f'Updated template "{title}" ({id})')
 
 
 class Finding(TypedDict):

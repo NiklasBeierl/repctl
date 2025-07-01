@@ -1,4 +1,4 @@
-__all__ = ["read_report_file"]
+__all__ = ["ScubaFindingLoader"]
 
 import json
 from argparse import ArgumentParser, Namespace
@@ -61,7 +61,7 @@ class ScubaFindingLoader(FindingLoader):
         parser.add_argument(
             "--lang",
             type=str,
-            help="Code of language to use for templates, default: de-DE",
+            help="Language code to use for templates, default: de-DE",
             default="de-DE",
         )
         parser.add_argument(
@@ -69,7 +69,6 @@ class ScubaFindingLoader(FindingLoader):
         )
 
     def __call__(self, args: Namespace) -> int:
-
         try:
             results = read_report_file(args.input)
         except InvalidScubaReport as e:
@@ -83,7 +82,6 @@ class ScubaFindingLoader(FindingLoader):
                 template_id = self.get_template_id(f"{product.lower()}-{group_id}")
                 template = self.session.templates.find_one(template_id)
                 # Returned from API, must have an ID
-                assert template["id"] is not None # type: ignore
                 self.session.findings.create_from_template(
                     project_id=self.project_id,
                     template_id=template["id"],
@@ -111,5 +109,5 @@ class ScubaFindingLoader(FindingLoader):
                         finding_id=finding["id"],
                         finding=finding,
                     )
-                    LOGGER.warning(f"Added finding {policy_id} ({finding['id']})")
+                    LOGGER.info(f"Added finding {policy_id} ({finding['id']})")
         return 0
