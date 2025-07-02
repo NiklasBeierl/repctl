@@ -9,7 +9,7 @@ promises! 😜
 
 ## Brought to you by Mint Secure
 
-This tool was developed during an internship at [Mint Secure](mint-secure.de).
+This tool was developed during an internship at [Mint Secure](https://mint-secure.de).
 Thanks for open-sourcing it!
 
 ## Configuration
