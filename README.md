@@ -7,7 +7,7 @@ creators of SysReptor which has a lot more features, but doesn't cover the speci
 use-case the author faced. `repctl` might eventually catch up, but no
 promises! 😜
 
-## Brought to you by mint-secure
+## Brought to you by Mint Secure
 
 This tool was developed during an internship at [Mint Secure](mint-secure.de).
 Thanks for open-sourcing it!
