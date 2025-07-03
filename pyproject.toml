@@ -9,6 +9,19 @@ dependencies = [
     "requests-toolbelt>=1.0.0",
     "python-dotenv>=1.1.0",
 ]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: Unix",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Security",
+]
+
+[project.urls]
+Repository = "https://github.com/NiklasBeierl/repctl"
 
 [project.scripts]
 repctl = "repctl.__main__:main_cli"
