@@ -7,6 +7,24 @@ creators of SysReptor which has a lot more features, but doesn't cover the speci
 use-case the author faced. `repctl` might eventually catch up, but no
 promises! 😜
 
+## Installation
+
+`repctl` is distributed as a python package on PyPi, so you can *in principle* 
+install it with `pip` or any other dependency / environment manager. Note that many 
+distributions are starting to prevent python packages from being installed 
+[system or even user-wide](https://www.kali.org/blog/python-externally-managed/).
+
+So for Kali, the most convenient method is probably pipx:
+```sh
+sudo apt update && apt install pipx
+pipx install repctl
+pipx ensurepath
+
+# RESTART YOUR SHELL!
+
+repctl --help
+```
+
 ## Brought to you by Mint Secure GmbH
 
 This tool was developed during an internship at [Mint Secure](https://mint-secure.de).
