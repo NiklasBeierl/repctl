@@ -1,6 +1,6 @@
 [project]
 name = "repctl"
-version = "0.1.0"
+version = "0.1.1"
 description = "An alternative CLI and API-Client for sysReptor"
 readme = "README.md"
 requires-python = ">=3.13"

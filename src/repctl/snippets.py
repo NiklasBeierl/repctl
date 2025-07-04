@@ -61,7 +61,11 @@ def read_snippet(path: Path) -> SnippetData:
     content_lines = list(lines)
 
     data = cast(SnippetData, frontmatter)
-    set_content_field(data, "".join(content_lines))
+    try:
+        set_content_field(data, "".join(content_lines))
+    except SnippetParsingException as e :
+        raise SnippetParsingException(f"{path} frontmatter has no field '{e.args[0]}'")
+
     return data
 
 

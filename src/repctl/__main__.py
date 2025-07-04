@@ -8,7 +8,7 @@ from typing import Type
 
 from dotenv import load_dotenv
 
-from repctl.exceptions import RepctlException
+from repctl.exceptions import RepctlException, SnippetParsingException
 from repctl.findings import FindingLoader
 from repctl.findings.loaders.scuba import ScubaFindingLoader
 from repctl.snippets import (
@@ -45,12 +45,21 @@ def load_templates(args: Namespace) -> int:
     langs_found: defaultdict[str, set[str]] = defaultdict(set)
     templates: dict[str, NewFindingTemplate] = {}
 
-    for snippet in all_snippets.values():
-        template_id = snippet["templateId"]
-        id_value = make_template_id(template_id)
-        lang = snippet["lang"]
+    for name, snippet in all_snippets.items():
+        try:
+            template_id = snippet["templateId"]
+            lang = snippet["lang"]
+            sysreptor_fields = snippet["sysReptorFields"]
+            tags = snippet["tags"]
+        except KeyError as e:
+            raise SnippetParsingException(
+                f"{name} has no key '{e.args[0]}' in frontmatter"
+            )
 
-        if snippet["isMain"]:
+        is_main = snippet.get("isMain", False)
+        id_value = make_template_id(template_id)
+
+        if is_main:
             if id_value in main_found:
                 LOGGER.error(
                     f"Found multiple main translations for {template_id}, aborting."
@@ -68,9 +77,9 @@ def load_templates(args: Namespace) -> int:
 
         translation: NewFindingTemplateTranslation = dict(
             language=lang,
-            is_main=snippet["isMain"],
+            is_main=is_main,
             data={
-                **snippet["sysReptorFields"],
+                **sysreptor_fields,
                 ID_VALUE_FIELD_NAME: id_value,
             },
         )
@@ -79,7 +88,7 @@ def load_templates(args: Namespace) -> int:
         if template_id not in templates:
             template = templates[id_value] = dict(
                 translations=[],
-                tags=list(set(snippet["tags"])),
+                tags=list(set(tags)),
             )
 
         else:
@@ -160,8 +169,11 @@ def main_cli() -> int:
     if LOCAL_DOTENV_PATH.exists():
         LOGGER.info(f"Loading env vars from {LOCAL_DOTENV_PATH}")
         load_dotenv()
-
-    return args.func(args)
+    try:
+        return args.func(args)
+    except RepctlException as e:
+        LOGGER.error(e.msg)
+        return 1
 
 
 if __name__ == "__main__":
